@@ -1,13 +1,12 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const axios = require('axios');
 const bodyParser = require('body-parser');
-const nodemailer = require('nodemailer');
 
 const app = express();
-app.use(bodyParser.json());
-const cors = require('cors');
 app.use(cors());
+app.use(bodyParser.json());
 
 // Get Microsoft Graph access token
 const getAccessToken = async () => {
@@ -104,54 +103,6 @@ app.get('/api/lists', async (req, res) => {
       error: 'Failed to fetch SharePoint lists',
       details: err.response?.data || err.message,
     });
-  }
-});
-
-// Email sending endpoint
-app.post('/api/send-email', async (req, res) => {
-  const data = req.body;
-  try {
-    // Configure your SMTP transport (update with your real SMTP credentials)
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.example.com',
-      port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587,
-      secure: false, // true for 465, false for other ports
-      auth: {
-        user: process.env.SMTP_USER || 'your@email.com',
-        pass: process.env.SMTP_PASS || 'yourpassword',
-      },
-    });
-
-    // Compose email body (simple text version)
-    let text = `Shipping Instruction Submission\n\n`;
-    text += `Reference: ${data.info?.reference || ''}\n`;
-    text += `Bill of Lading: ${data.info?.billOfLading || ''}\n`;
-    text += `Carrier Reference: ${data.info?.carrierReference || ''}\n`;
-    text += `Destination Port: ${data.info?.destinationPort || ''}\n`;
-    text += `Load Point: ${data.info?.loadPoint || ''}\n`;
-    text += `Vessel: ${data.info?.vessel || ''}\n`;
-    text += `Local Client: ${data.info?.localClient || ''}\n`;
-    text += `Pickup Date: ${data.info?.pickupDate || ''}\n\n`;
-    text += `Name: ${data.name || ''}\nEmail: ${data.email || ''}\n\n`;
-    text += `Consignor: ${JSON.stringify(data.consignor, null, 2)}\n\n`;
-    text += `Consignee: ${JSON.stringify(data.consignee, null, 2)}\n\n`;
-    text += `Notify: ${JSON.stringify(data.notify, null, 2)}\n\n`;
-    text += `Shipment Value: ${data.shipmentValue || ''}\nNotes: ${data.shipmentNotes || ''}\n\n`;
-    text += `Containers:\n`;
-    (data.containers || []).forEach((c, i) => {
-      text += `  [${i + 1}] ${JSON.stringify(c, null, 2)}\n`;
-    });
-
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM || 'noreply@yourdomain.com',
-      to: process.env.SMTP_TO || 'your@email.com',
-      subject: 'New Shipping Instruction Submission',
-      text,
-    });
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Email send error:', err);
-    res.status(500).json({ success: false, error: err.message });
   }
 });
 
