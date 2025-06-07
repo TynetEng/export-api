@@ -109,3 +109,5 @@ app.get('/api/lists', async (req, res) => {
 app.listen(3000, () => {
   console.log('Node server running on http://localhost:3000');
 });
+
+// Export app for testing
