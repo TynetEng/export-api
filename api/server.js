@@ -111,13 +111,18 @@ app.get('/api/lists', async (req, res) => {
 
 // Convert HTML to PDF using Puppeteer
 async function generatePdfFromHtml(htmlContent) {
-  const browser = await puppeteer.launch({ headless: 'new' });
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    executablePath: process.env.CHROME_BIN || null,
+  });
   const page = await browser.newPage();
   await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
   const pdfBuffer = await page.pdf({ format: 'A4' });
   await browser.close();
   return pdfBuffer;
 }
+
 
 // Submit shipping form and send email
 app.post('/api/submit-shipping', async (req, res) => {
@@ -210,6 +215,37 @@ app.post('/api/submit-shipping', async (req, res) => {
   } catch (err) {
     console.error('Email send error:', err);
     res.status(500).json({ error: 'Failed to send email with PDF', details: err.message });
+  }
+});
+
+// Route to fetch client items from Client list where customerId matches the Customer field of a booking item
+app.get('/api/item/:id/clients', async (req, res) => {
+  try {
+    const token = await getAccessToken();
+    const siteId = await getGraphSiteId(token);
+    const bookingListId = await getListId(token, siteId, process.env.SHAREPOINT_LIST_NAME);
+    const clientListId = await getListId(token, siteId, process.env.SHAREPOINT_LIST_NAME2);
+
+    // Fetch the booking item by ID
+    const bookingItem = await getItemById(token, siteId, bookingListId, req.params.id);
+    const customerValue = bookingItem.fields && bookingItem.fields.Customer;
+    if (!customerValue) {
+      return res.status(404).json({ error: 'Customer field not found in booking item' });
+    }
+
+    // Fetch all client items where customerId matches the Customer value
+    const filter = `fields/Customer_x002d_ID eq '${customerValue}'`;
+    const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${clientListId}/items?$expand=fields&$filter=${encodeURIComponent(filter)}`;
+    const response = await axios.get(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    res.json(response.data.value);
+  } catch (err) {
+    console.error('Error fetching client items by customer:', err.response?.data || err.message);
+    res.status(500).json({
+      error: 'Failed to fetch client items by customer',
+      details: err.response?.data || err.message,
+    });
   }
 });
 
